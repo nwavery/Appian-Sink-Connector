@@ -56,7 +56,7 @@ If you wish to include a `manifest.json` file in the root of your ZIP (recommend
 
 ## Configuration Properties
 
-When setting up an instance of this connector, you will need to provide the following configuration properties:
+When setting up an instance of this connector in the Confluent Cloud UI (or similar Kafka Connect management interfaces), you will typically provide the following configuration properties as key/value pairs. The "Key" is the property name listed below, and the "Value" is what you configure for your specific setup.
 
 -   `name`
     -   **Description**: A unique name for this connector instance.
