@@ -1,0 +1,26 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.1.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.1.0 http://maven.apache.org/xsd/assembly-2.1.0.xsd">
+    <id>connector</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>/lib</outputDirectory>
+            <useProjectArtifact>true</useProjectArtifact> <!-- Include the main project JAR in lib/ -->
+            <scope>runtime</scope> <!-- Include runtime dependencies -->
+            <unpack>false</unpack>
+        </dependencySet>
+    </dependencySets>
+    <!-- You can also include files like manifest.json, README, licenses here if you want them in the root of the ZIP -->
+    <!-- For example, to include a manifest.json from the project root:
+    <files>
+        <file>
+            <source>manifest.json</source>
+            <outputDirectory>/</outputDirectory>
+        </file>
+    </files>
+    -->
+</assembly> 
