@@ -74,7 +74,7 @@ When setting up an instance of this connector in the Confluent Cloud UI (or simi
     -   **Description**: The full HTTP(S) endpoint URL of the Appian API for creating records.
     -   **Example**: `https://your-appian-site.com/suite/webapi/your-record-creation-api`
 -   `appian.api.key`
-    -   **Description**: The API key for authenticating with the Appian API. (Mark as sensitive when configuring in Confluent Cloud).
+    -   **Description**: The Appian API Key for authentication (will be treated as a password type by Kafka Connect).
     -   **Example**: `YOUR_SECRET_APPIAN_API_KEY`
 -   `key.converter`
     -   **Description**: Converter for message keys.
@@ -88,6 +88,14 @@ When setting up an instance of this connector in the Confluent Cloud UI (or simi
 -   `value.converter.schemas.enable` (Optional)
     -   **Description**: Set to `false` as the connector expects plain JSON strings for values.
     -   **Example**: `false`
+-   `appian.batch.size`
+    -   **Description**: Maximum number of records to batch together before sending to Appian. The connector will send the batch if this size is reached or if the `appian.batch.max.wait.ms` is met, whichever happens first.
+    -   **Default**: `100`
+    -   **Example**: `200`
+-   `appian.batch.max.wait.ms`
+    -   **Description**: Maximum time in milliseconds to wait for a batch to fill before sending to Appian, even if `appian.batch.size` has not been reached. This helps ensure records are not delayed indefinitely if the incoming message rate is low.
+    -   **Default**: `5000` (5 seconds)
+    -   **Example**: `10000` (10 seconds)
 
 **Note on `appian.api.key`**: When deploying to Confluent Cloud, ensure you declare `appian.api.key` as a "sensitive property" during the connector plugin upload process. This allows Confluent Cloud to manage it securely.
 
@@ -121,4 +129,6 @@ For detailed, step-by-step instructions on using the Confluent Cloud UI or CLI t
 -   Check the Kafka Connect worker logs for your connector tasks. In Confluent Cloud, these logs are accessible through the UI.
 -   Ensure the Appian API endpoint is reachable from the environment where the Connect worker is running.
 -   Verify that the Appian API key has the necessary permissions to create records.
--   Confirm that messages in the Kafka topic are valid JSON strings as expected by the connector. 
+-   Confirm that messages in the Kafka topic are valid JSON strings as expected by the connector.
+
+### Example Connector Configuration (JSON format for Confluent Cloud CLI or Kafka Connect REST API) 

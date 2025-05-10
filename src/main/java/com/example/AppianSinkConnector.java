@@ -18,6 +18,8 @@ public class AppianSinkConnector extends SinkConnector {
     public static final String APPIAN_ENDPOINT_CONFIG = "appian.endpoint.url";
     public static final String APPIAN_API_KEY_CONFIG = "appian.api.key";
     public static final String KAFKA_TOPIC_CONFIG = "topics"; // Standard Kafka Connect config for topics
+    public static final String APPIAN_BATCH_SIZE_CONFIG = "appian.batch.size";
+    public static final String APPIAN_BATCH_MAX_WAIT_MS_CONFIG = "appian.batch.max.wait.ms";
 
     private Map<String, String> configProperties;
 
@@ -68,8 +70,27 @@ public class AppianSinkConnector extends SinkConnector {
     @Override
     public ConfigDef config() {
         return new ConfigDef()
-                .define(APPIAN_ENDPOINT_CONFIG, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Appian API endpoint URL for creating records.")
-                .define(APPIAN_API_KEY_CONFIG, ConfigDef.Type.PASSWORD, ConfigDef.Importance.HIGH, "Appian API Key for authentication.")
-                .define(KAFKA_TOPIC_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "Comma-separated list of Kafka topics to consume from.");
+                .define(APPIAN_ENDPOINT_CONFIG,
+                        ConfigDef.Type.STRING,
+                        ConfigDef.Importance.HIGH,
+                        "The Appian API endpoint URL for creating records.")
+                .define(APPIAN_API_KEY_CONFIG,
+                        ConfigDef.Type.PASSWORD,
+                        ConfigDef.Importance.HIGH,
+                        "The Appian API Key for authentication.")
+                .define(KAFKA_TOPIC_CONFIG, // Kafka Connect framework standard config
+                        ConfigDef.Type.LIST,
+                        ConfigDef.Importance.HIGH,
+                        "The Kafka topic(s) to consume from.")
+                .define(APPIAN_BATCH_SIZE_CONFIG,
+                        ConfigDef.Type.INT,
+                        100, // Default value
+                        ConfigDef.Importance.MEDIUM,
+                        "Maximum number of records to batch together before sending to Appian.")
+                .define(APPIAN_BATCH_MAX_WAIT_MS_CONFIG,
+                        ConfigDef.Type.LONG,
+                        5000, // Default value (5 seconds)
+                        ConfigDef.Importance.MEDIUM,
+                        "Maximum time in milliseconds to wait for a batch to fill before sending to Appian.");
     }
 } 

@@ -8,13 +8,19 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public class AppianSinkTask extends SinkTask {
@@ -24,6 +30,12 @@ public class AppianSinkTask extends SinkTask {
     private String appianApiKey;
     private CloseableHttpClient httpClient;
     private static final int MAX_RETRIES = 3;
+
+    // Batching specific properties
+    private List<SinkRecord> batch;
+    private int appianBatchSize;
+    private long appianBatchMaxWaitMs;
+    private Instant batchStartTime;
 
     @Override
     public String version() {
@@ -43,6 +55,14 @@ public class AppianSinkTask extends SinkTask {
             throw new RuntimeException("Appian API key not configured.");
         }
         this.httpClient = HttpClients.createDefault();
+
+        // Initialize batching properties
+        this.batch = new ArrayList<>();
+        this.appianBatchSize = Integer.parseInt(props.getOrDefault(AppianSinkConnector.APPIAN_BATCH_SIZE_CONFIG, "100"));
+        this.appianBatchMaxWaitMs = Long.parseLong(props.getOrDefault(AppianSinkConnector.APPIAN_BATCH_MAX_WAIT_MS_CONFIG, "5000"));
+        this.batchStartTime = Instant.now();
+
+        logger.info("AppianSinkTask configured with batch size: {} and max wait ms: {}", appianBatchSize, appianBatchMaxWaitMs);
     }
 
     @Override
@@ -50,17 +70,38 @@ public class AppianSinkTask extends SinkTask {
         if (records.isEmpty()) {
             return;
         }
-        logger.info("Received {} records to send to Appian.", records.size());
+        logger.debug("Received {} records.", records.size());
         for (SinkRecord record : records) {
             if (record.value() == null) {
                 logger.warn("Received null record value, skipping. Topic: {}, Partition: {}, Offset: {}",
                         record.topic(), record.kafkaPartition(), record.kafkaOffset());
                 continue;
             }
-            // Assuming the record value is a JSON string, as per the original requirement
+            batch.add(record);
+        }
+
+        // Check if batch should be processed
+        if (!batch.isEmpty() && (batch.size() >= appianBatchSize ||
+            Duration.between(batchStartTime, Instant.now()).toMillis() >= appianBatchMaxWaitMs)) {
+            logger.info("Processing batch due to size ({}) or time ({} ms elapsed).", batch.size(), Duration.between(batchStartTime, Instant.now()).toMillis());
+            processBatch();
+        }
+    }
+
+    private void processBatch() {
+        if (batch.isEmpty()) {
+            return;
+        }
+        logger.info("Sending batch of {} records to Appian.", batch.size());
+        List<SinkRecord> currentBatch = new ArrayList<>(batch); // Process a copy
+        batch.clear(); // Clear original batch before processing to accept new records
+        batchStartTime = Instant.now(); // Reset timer
+
+        for (SinkRecord record : currentBatch) {
             String jsonData = record.value().toString();
             sendToAppianWithRetries(jsonData, record);
         }
+        logger.info("Finished processing batch of {} records.", currentBatch.size());
     }
 
     private void sendToAppianWithRetries(String jsonData, SinkRecord record) {
@@ -146,8 +187,24 @@ public class AppianSinkTask extends SinkTask {
     }
 
     @Override
+    public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
+        logger.info("Flush called. Processing any remaining records in the batch (size: {}).", batch.size());
+        processBatch();
+        // The 'offsets' parameter is provided by the Connect framework. If your task manages offsets itself,
+        // you would use this map to tell the framework which offsets have been successfully committed.
+        // In this implementation, we are relying on the framework's default offset management, which typically commits
+        // offsets for records that have been passed to put() and for which put() has returned successfully.
+        // If processBatch() throws an exception for a record, the framework might retry or handle it based on its error settings.
+        // For more complex scenarios, like wanting to commit offsets only *after* Appian confirms receipt of a batch,
+        // you would need to store the offsets from the SinkRecords in the batch and use them here.
+        // For now, this basic flush primarily ensures pending records are sent.
+    }
+
+    @Override
     public void stop() {
-        logger.info("Stopping AppianSinkTask");
+        logger.info("Stopping AppianSinkTask. Processing final batch (size: {}).", batch.size());
+        processBatch(); // Ensure any remaining data is sent
+
         if (httpClient != null) {
             try {
                 httpClient.close();
