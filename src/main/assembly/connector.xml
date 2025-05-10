@@ -14,13 +14,4 @@
             <unpack>false</unpack>
         </dependencySet>
     </dependencySets>
-    <!-- You can also include files like manifest.json, README, licenses here if you want them in the root of the ZIP -->
-    <!-- For example, to include a manifest.json from the project root:
-    <files>
-        <file>
-            <source>manifest.json</source>
-            <outputDirectory>/</outputDirectory>
-        </file>
-    </files>
-    -->
 </assembly> 
