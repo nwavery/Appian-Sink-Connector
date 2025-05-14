@@ -1,5 +1,8 @@
 package com.example;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.dataformat.avro.AvroMapper;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
@@ -30,6 +33,7 @@ public class AppianSinkTask extends SinkTask {
     private String appianApiKey;
     private CloseableHttpClient httpClient;
     private static final int MAX_RETRIES = 3;
+    private AvroMapper avroMapper; // For Avro to JSON conversion
 
     // Batching specific properties
     private List<SinkRecord> batch;
@@ -55,6 +59,7 @@ public class AppianSinkTask extends SinkTask {
             throw new RuntimeException("Appian API key not configured.");
         }
         this.httpClient = HttpClients.createDefault();
+        this.avroMapper = new AvroMapper(); // Initialize AvroMapper
 
         // Initialize batching properties
         this.batch = new ArrayList<>();
@@ -98,8 +103,41 @@ public class AppianSinkTask extends SinkTask {
         batchStartTime = Instant.now(); // Reset timer
 
         for (SinkRecord record : currentBatch) {
-            String jsonData = record.value().toString();
-            sendToAppianWithRetries(jsonData, record);
+            String jsonData = null;
+            try {
+                Object value = record.value();
+                if (value instanceof GenericRecord) {
+                    GenericRecord avroRecord = (GenericRecord) value;
+                    jsonData = avroMapper.writeValueAsString(avroRecord);
+                    logger.debug("Converted Avro record to JSON for (Topic: {}, Partition: {}, Offset: {}): {}",
+                                 record.topic(), record.kafkaPartition(), record.kafkaOffset(), jsonData);
+                } else if (value instanceof String) {
+                    jsonData = (String) value;
+                    logger.debug("Using raw string as JSON for (Topic: {}, Partition: {}, Offset: {}): {}",
+                                 record.topic(), record.kafkaPartition(), record.kafkaOffset(), jsonData);
+                } else if (value == null) {
+                    // This case should ideally be caught by the check in put(), but defensive check here.
+                    logger.warn("Null record value encountered in processBatch for (Topic: {}, Partition: {}, Offset: {}), skipping.",
+                                record.topic(), record.kafkaPartition(), record.kafkaOffset());
+                    continue; // Skip this record
+                } else {
+                    logger.warn("Unexpected record value type {} encountered in processBatch for (Topic: {}, Partition: {}, Offset: {}), skipping.",
+                                value.getClass().getName(), record.topic(), record.kafkaPartition(), record.kafkaOffset());
+                    continue; // Skip this record
+                }
+
+                if (jsonData != null) {
+                    sendToAppianWithRetries(jsonData, record);
+                }
+            } catch (JsonProcessingException e) {
+                logger.error("Failed to convert record to JSON for (Topic: {}, Partition: {}, Offset: {}). Error: {}",
+                             record.topic(), record.kafkaPartition(), record.kafkaOffset(), e.getMessage(), e);
+                // Optional: throw new ConnectException("Failed to serialize record to JSON", e); to let Connect handle it (e.g., DLQ)
+            } catch (Exception e) { // Catch any other unexpected errors during individual record processing
+                logger.error("Unexpected error processing record (Topic: {}, Partition: {}, Offset: {}). Error: {}",
+                             record.topic(), record.kafkaPartition(), record.kafkaOffset(), e.getMessage(), e);
+                // Optional: throw new ConnectException or handle error specific to this record
+            }
         }
         logger.info("Finished processing batch of {} records.", currentBatch.size());
     }
