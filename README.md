@@ -6,7 +6,7 @@ This Kafka Connect sink connector consumes JSON messages from specified Kafka to
 
 The connector performs the following actions:
 - Subscribes to one or more Kafka topics.
-- Expects JSON string messages from these topics by default.
+- Expects JSON string messages from these topics.
 - Authenticates with Appian using a provided API key.
 - Makes HTTP POST requests to a configurable Appian API endpoint to create records.
 - Includes a simple retry mechanism for failed API calls.
@@ -77,16 +77,16 @@ When setting up an instance of this connector in the Confluent Cloud UI (or simi
     -   **Description**: The Appian API Key for authentication (will be treated as a password type by Kafka Connect).
     -   **Example**: `YOUR_SECRET_APPIAN_API_KEY`
 -   `key.converter`
-    -   **Description**: Converter for message keys. If your keys are simple strings, `StringConverter` is appropriate.
+    -   **Description**: Converter for message keys.
     -   **Example**: `org.apache.kafka.connect.storage.StringConverter`
 -   `key.converter.schemas.enable` (Optional)
-    -   **Description**: Set to `false` if keys don't have schemas (common for string keys).
+    -   **Description**: Set to `false` if keys don't have schemas.
     -   **Example**: `false`
 -   `value.converter`
-    -   **Description**: Converter for message values. Since this connector expects JSON strings to send to Appian, `StringConverter` is the typical choice. See the "Data Format Handling" section for more details if your topic contains other formats like Avro.
+    -   **Description**: Converter for message values. Since messages are JSON strings, StringConverter is appropriate.
     -   **Example**: `org.apache.kafka.connect.storage.StringConverter`
 -   `value.converter.schemas.enable` (Optional)
-    -   **Description**: Set to `false` if your values are plain JSON strings and do not have an associated schema registered with the Schema Registry that `StringConverter` should be aware of.
+    -   **Description**: Set to `false` as the connector expects plain JSON strings for values.
     -   **Example**: `false`
 -   `appian.batch.size`
     -   **Description**: Maximum number of records to batch together before sending to Appian. The connector will send the batch if this size is reached or if the `appian.batch.max.wait.ms` is met, whichever happens first.
@@ -98,26 +98,6 @@ When setting up an instance of this connector in the Confluent Cloud UI (or simi
     -   **Example**: `10000` (10 seconds)
 
 **Note on `appian.api.key`**: When deploying to Confluent Cloud, ensure you declare `appian.api.key` as a "sensitive property" during the connector plugin upload process. This allows Confluent Cloud to manage it securely.
-
-## Data Format Handling
-
-This connector is designed to send JSON payloads to the Appian API.
-
-**Current Implementation (JSON Strings):**
--   The connector expects that the Kafka messages it consumes have values that are already **JSON strings**.
--   Therefore, the recommended `value.converter` is `org.apache.kafka.connect.storage.StringConverter`.
--   The `AppianSinkTask` takes the record's value, converts it to a `String` (assuming it's a JSON string), and sends it directly to Appian.
-
-**Handling Other Data Formats (e.g., Avro, Protobuf):**
-If your Kafka topics contain messages in other formats like Avro or Protobuf, you will need to:
-1.  **Configure the appropriate Kafka Connect `value.converter`**:
-    -   For Avro: `io.confluent.connect.avro.AvroConverter` (requires Schema Registry).
-    -   For Protobuf: `io.confluent.connect.protobuf.ProtobufConverter` (requires Schema Registry).
-    -   Ensure these converters (and their dependencies) are available to your Kafka Connect workers.
-2.  **Ensure JSON Output for Appian**: The Appian API called by this connector expects a JSON payload.
-    -   If your chosen `value.converter` (e.g., AvroConverter) deserializes the message into a structured object (like an Avro `GenericRecord`) rather than a JSON string, you would need to **modify the `AppianSinkTask.java` code**.
-    -   The modification would involve adding logic to serialize the `GenericRecord` (or other object types) into a JSON string before it's sent to the Appian API. This might involve using libraries like Jackson with its Avro or Protobuf dataformat modules.
-    -   You would also need to add these serialization libraries as dependencies in your `pom.xml` and ensure they are packaged with the connector.
 
 ## Deploying to Confluent Cloud
 
@@ -149,6 +129,6 @@ For detailed, step-by-step instructions on using the Confluent Cloud UI or CLI t
 -   Check the Kafka Connect worker logs for your connector tasks. In Confluent Cloud, these logs are accessible through the UI.
 -   Ensure the Appian API endpoint is reachable from the environment where the Connect worker is running.
 -   Verify that the Appian API key has the necessary permissions to create records.
--   Confirm that messages in the Kafka topic are valid JSON strings as expected by the connector, or that you have configured appropriate converters if using other formats (see "Data Format Handling").
+-   Confirm that messages in the Kafka topic are valid JSON strings as expected by the connector.
 
 ### Example Connector Configuration (JSON format for Confluent Cloud CLI or Kafka Connect REST API) 
